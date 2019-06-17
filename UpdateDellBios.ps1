@@ -77,6 +77,7 @@ if(!(Test-Path -Path $downloadPath))
 {
     New-Item -Path $downloadPath -ItemType Directory
 }
+
 # Download CatalogIndexPC.cab
 $url = $dellDownloadsUrl + "\" + $catalogFile
 $filePath = Join-Path -Path $downloadPath -ChildPath $catalogFile
