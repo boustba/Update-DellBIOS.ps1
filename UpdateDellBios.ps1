@@ -2,8 +2,6 @@
 <#
 Author: Brandon Boust
 Created: 5/24/2019
-Modified:
-Changes:
 #>
 
 # Functions
@@ -94,43 +92,53 @@ $groupManifests = $catalogIndexPC.ManifestIndex.GroupManifest
 $modelCatalog = $groupManifests | Where-Object -FilterScript { $PSItem.SupportedSystems.Brand.Model.systemID -eq $systemId }
 $modelCabPath = $modelCatalog.ManifestInformation.path
 
-# Download the cab file that corresponds to the system ID
-$cabFile = Split-Path -Path $modelCabPath -Leaf
-$cabUrl = $dellDownloadsBaseUrl + $modelCabPath
-$cabFilePath = Join-Path -Path $downloadPath -ChildPath $cabFile
-DownloadFile -URI $cabUrl -DownloadLocation $cabFilePath
-
-# Expand the downloaded cab file
-$modelXmlFileName = $cabFile.Replace(".cab", ".xml")
-$extractToPath = Join-Path -Path $downloadPath -ChildPath $modelXmlFileName
-expand.exe $cabFilePath -F:$modelXmlFileName $extractToPath
-
-# Parse the xml file to find the latest BIOS package.
-[xml]$modelXmlFile = Get-Content -Path $extractToPath
-$softwareComponents = $modelXmlFile.Manifest.SoftwareComponent
-$modelNumber = Get-ModelNumber
-$biosPackages = $softwareComponents | 
-    Where-Object -FilterScript { $PSItem.ComponentType.value -eq "BIOS" -and $($PSItem.SupportedDevices.Device.Display.'#cdata-section').Contains($modelNumber) }
-$biosPackage = $biosPackages[$biosPackages.Length - 1]
-
-# Check if the BIOS version in the xml is newer than the version installed on the computer.
-$biosVersionObject = Convert-BiosVersionStringToNumber -BiosVersionString $biosVersion
-$xmlVersionObject = Convert-BiosVersionStringToNumber -BiosVersionString $biosPackage.dellVersion
-
-if($($biosVersionObject.CompareTo($xmlVersionObject)) -ge 0) 
+# If no model cab path is returned, assume the model is not listed in the xml, else continue to process the code
+if($null -eq $modelCabPath)
 {
-    Write-Host "The BIOS is already the latest version, nothing to do." -ForegroundColor Green -BackgroundColor Black
+    Write-Host -ForegroundColor Red -BackgroundColor Black "This computer model is not supported. The system ID, $systemId, could not be found in the XML."
     Pause
 }
-else 
+else
 {
-    # Download the BIOS Package
-    $biosFileUrl = $dellDownloadsBaseUrl + $biosPackage.path
-    $biosFileName = Split-Path -Path $biosPackage.path -Leaf
-    $biosFilePath = Join-Path -Path $downloadPath -ChildPath $biosFileName
-    DownloadFile -URI $biosFileUrl -DownloadLocation $biosFilePath
+    # Download the cab file that corresponds to the system ID
+    $cabFile = Split-Path -Path $modelCabPath -Leaf
+    $cabUrl = $dellDownloadsBaseUrl + $modelCabPath
+    $cabFilePath = Join-Path -Path $downloadPath -ChildPath $cabFile
+    DownloadFile -URI $cabUrl -DownloadLocation $cabFilePath
 
-    # Run the BIOS Package as admin
-    $flags = "/s /r"
-    Start-Process -FilePath $biosFilePath -ArgumentList $flags -Verb runAs
+    # Expand the downloaded cab file
+    $modelXmlFileName = $cabFile.Replace(".cab", ".xml")
+    $extractToPath = Join-Path -Path $downloadPath -ChildPath $modelXmlFileName
+    expand.exe $cabFilePath -F:$modelXmlFileName $extractToPath
+
+    # Parse the xml file to find the latest BIOS package.
+    [xml]$modelXmlFile = Get-Content -Path $extractToPath
+    $softwareComponents = $modelXmlFile.Manifest.SoftwareComponent
+    $modelNumber = Get-ModelNumber
+    $biosPackages = $softwareComponents | 
+        Where-Object -FilterScript { $PSItem.ComponentType.value -eq "BIOS" -and $($PSItem.SupportedDevices.Device.Display.'#cdata-section').Contains($modelNumber) }
+    $biosPackage = $biosPackages[$biosPackages.Length - 1]
+
+    # Check if the BIOS version in the xml is newer than the version installed on the computer.
+    $biosVersionObject = Convert-BiosVersionStringToNumber -BiosVersionString $biosVersion
+    $xmlVersionObject = Convert-BiosVersionStringToNumber -BiosVersionString $biosPackage.dellVersion
+
+    if($($biosVersionObject.CompareTo($xmlVersionObject)) -ge 0) 
+    {
+        Write-Host "The BIOS is already the latest version, nothing to do." -ForegroundColor Green -BackgroundColor Black
+        Pause
+    }
+    else 
+    {
+        # Download the BIOS Package
+        $biosFileUrl = $dellDownloadsBaseUrl + $biosPackage.path
+        $biosFileName = Split-Path -Path $biosPackage.path -Leaf
+        $biosFilePath = Join-Path -Path $downloadPath -ChildPath $biosFileName
+        DownloadFile -URI $biosFileUrl -DownloadLocation $biosFilePath
+
+        # Run the BIOS Package as admin
+        $flags = "/s /r"
+        Start-Process -FilePath $biosFilePath -ArgumentList $flags -Verb runAs
+    }    
 }
+
