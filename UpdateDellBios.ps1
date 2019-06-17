@@ -72,6 +72,11 @@ $systemId = Get-SystemId
 $catalogFile = "CatalogIndexPC.cab"
 
 # Main logic
+# Make sure download path exists.
+if(!(Test-Path -Path $downloadPath))
+{
+    New-Item -Path $downloadPath -ItemType Directory
+}
 # Download CatalogIndexPC.cab
 $url = $dellDownloadsUrl + "\" + $catalogFile
 $filePath = Join-Path -Path $downloadPath -ChildPath $catalogFile
