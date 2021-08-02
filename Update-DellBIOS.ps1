@@ -30,8 +30,14 @@ function Get-SystemId
 
 function Get-ModelNumber
 {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [string]
+        $FullModelString
+    )
     $matchCondition = "[A-Z]?[0-9]{4}[a-zA-Z]?"
-    $compModel = Select-String -Pattern $matchCondition -InputObject $model
+    $compModel = Select-String -Pattern $matchCondition -InputObject $FullModelString
     return $compModel.Matches.Value
 }
 
@@ -131,7 +137,7 @@ else
     # Parse the xml file to find the latest BIOS package.
     [xml]$modelXmlFile = Get-Content -Path $extractToPath
     $softwareComponents = $modelXmlFile.Manifest.SoftwareComponent
-    $modelNumber = Get-ModelNumber
+    $modelNumber = Get-ModelNumber -FullModelString $model
     $biosPackages = $softwareComponents | 
         Where-Object -FilterScript { $PSItem.ComponentType.value -eq "BIOS" -and $($PSItem.SupportedDevices.Device.Display.'#cdata-section').Contains($modelNumber) }
     if($null = $biosPackages) # Fallback in case there is something goofy like 7X90 in SupportedDevices
