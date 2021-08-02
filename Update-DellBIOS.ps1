@@ -1,13 +1,29 @@
-# Update Dell BIOS
+#Requires -RunAsAdministrator
+
 <#
-Author: Brandon Boust
-Created: 5/24/2019
+.SYNOPSIS
+    Updates the BIOS on Dell Computers
+.DESCRIPTION
+    Checks the Dell catalog for BIOS updates. Will download and install updated BIOS package if needed.
+.EXAMPLE
+    PS C:\> Update-DellBIOS.ps1
+    This script does not take any arguments. Defualt usage is to call script by name. Doing so will check for new BIOS version and install if an update is found.  
+.OUTPUTS
+    Outputs status info to host window
+.NOTES
+    May not work for all Dell computers. Venue tablet is unlikely to update successfully using this script. 
 #>
 
 # Functions
 function Get-SystemId 
 {
-    $_oemStringArray = $cimComputerSystem.OEMStringArray
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [CimInstance]
+        $SystemInfo
+    )
+    $_oemStringArray = $SystemInfo.OEMStringArray
     $_systemId = $_oemStringArray[1].Substring($_oemStringArray[1].IndexOf('[') + 1, $_oemStringArray[1].IndexOf(']') - 2)
     return $_systemId
 }
@@ -61,12 +77,18 @@ function Convert-BiosVersionStringToNumber
 # Global variables
 $dellDownloadsUrl = "http://downloads.dell.com/catalog/"
 $dellDownloadsBaseUrl = "http://downloads.dell.com/"
-$downloadPath = "C:\Temp"
+$downloadPath = $env:TEMP
 $cimBiosElement = Get-CimInstance -ClassName CIM_BIOSElement
 $cimComputerSystem = Get-CimInstance -ClassName CIM_ComputerSystem
 $model = $cimComputerSystem.Model
 $biosVersion = $cimBiosElement.SMBIOSBIOSVersion
-$systemId = Get-SystemId
+$skuNumber = $cimComputerSystem.SystemSKUNumber
+if ($null -eq $skuNumber) { # If SystemSKUNumber has no value fall back to OEMStringArray
+    $systemId = Get-SystemId -SystemInfo $cimComputerSystem
+}
+else {
+    $systemId = $skuNumber
+}
 $catalogFile = "CatalogIndexPC.cab"
 
 # Main logic
@@ -77,7 +99,7 @@ if(!(Test-Path -Path $downloadPath))
 }
 
 # Download CatalogIndexPC.cab
-$url = $dellDownloadsUrl + "\" + $catalogFile
+$url = "$dellDownloadsUrl\$catalogFile"
 $filePath = Join-Path -Path $downloadPath -ChildPath $catalogFile
 DownloadFile -URI $url -DownloadLocation $filePath
 
@@ -102,7 +124,7 @@ else
 {
     # Download the cab file that corresponds to the system ID
     $cabFile = Split-Path -Path $modelCabPath -Leaf
-    $cabUrl = $dellDownloadsBaseUrl + $modelCabPath
+    $cabUrl = "$dellDownloadsBaseUrl$modelCabPath"
     $cabFilePath = Join-Path -Path $downloadPath -ChildPath $cabFile
     DownloadFile -URI $cabUrl -DownloadLocation $cabFilePath
 
@@ -136,13 +158,13 @@ else
     else 
     {
         # Download the BIOS Package
-        $biosFileUrl = $dellDownloadsBaseUrl + $biosPackage.path
+        $biosFileUrl = "$dellDownloadsBaseUrl$($biosPackage.path)"
         $biosFileName = Split-Path -Path $biosPackage.path -Leaf
         $biosFilePath = Join-Path -Path $downloadPath -ChildPath $biosFileName
         DownloadFile -URI $biosFileUrl -DownloadLocation $biosFilePath
 
-        # Run the BIOS Package as admin
-        $flags = "/s /r"
+        # Run the BIOS Package as admin.
+        $flags = "/s /r" # Silent, Restart
         Start-Process -FilePath $biosFilePath -ArgumentList $flags -Verb runAs
     }    
 }
