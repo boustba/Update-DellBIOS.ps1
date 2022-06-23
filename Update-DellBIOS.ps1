@@ -140,7 +140,7 @@ else
     $modelNumber = Get-ModelNumber -FullModelString $model
     $biosPackages = $softwareComponents | 
         Where-Object -FilterScript { $PSItem.ComponentType.value -eq "BIOS" -and $($PSItem.SupportedDevices.Device.Display.'#cdata-section').Contains($modelNumber) }
-    if($null = $biosPackages) # Fallback in case there is something goofy like 7X90 in SupportedDevices
+    if($null -eq $biosPackages) # Fallback in case there is something goofy like 7X90 in SupportedDevices
     {
         $biosPackages = $softwareComponents | 
             Where-Object -FilterScript { $PSItem.ComponentType.value -eq "BIOS" -and $($PSItem.SupportedSystems.Brand.Model.Display.'#cdata-section').Contains($modelNumber) }
